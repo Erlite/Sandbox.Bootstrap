@@ -6,7 +6,7 @@ A failed attempt at a bootstrapper that lets you load any assembly with dependen
 
 * Create a solution that references Sandbox binaries.
 * Add any addons it depends on as projects of the solution
-* Reference whatever you want from Nuget
+* Reference whatever you want from Nuget/DLLs
 * Compile the "bootstrapped" addon.
 
 In your s&box addon:
