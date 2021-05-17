@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Reflection;
 namespace Sandbox.Bootstrap
 {
 	/// <summary>
@@ -6,8 +7,10 @@ namespace Sandbox.Bootstrap
 	/// </summary>
 	public class BootstrappedAddonBuilder
 	{
-		public string AssemblyPath { get; internal set; }
-		public string LookupTypeName { get; internal set; }
+		internal string AssemblyPath { get; set; }
+		internal string LookupTypeName { get; set; }
+		
+		internal Action<Assembly> OnAssemblyLoaded { get; set; }
 
 		/// <summary>
 		/// The path of the assembly to load.
@@ -39,15 +42,21 @@ namespace Sandbox.Bootstrap
 			LookupTypeName = type.FullName;
 			return this;
 		}
+
+		public BootstrappedAddonBuilder OnLoaded( Action<Assembly> onLoaded )
+		{
+			OnAssemblyLoaded = onLoaded;
+			return this;
+		}
 		
 		/// <summary>
 		/// Call to bootstrap the addon.
 		/// </summary>
-		public void Bootstrap()
+		public Assembly Bootstrap()
 		{
 			AssertValid();
 
-			Bootstrapper.GetOrCreate().Boot( this );
+			return Bootstrapper.GetOrCreate().Boot( this );
 		}
 		
 		internal void AssertValid()

@@ -19,9 +19,9 @@ namespace Sandbox.Bootstrap
 		private Action<Assembly, Assembly> _onNewAssembly;
 		
 		// Sandbox.AssemblyLibrary.All
-		private PropertyInfo _assemblyLibrary_All;
+		private FieldInfo _assemblyLibrary_All;
 		// Sandbox.AssemblyWrapper.Assembly
-		private PropertyInfo _assemblyWrapper_Assembly;
+		private FieldInfo _assemblyWrapper_Assembly;
 		
 		/// <summary>
 		/// Setup all of the required Reflection to interface with Sandbox.
@@ -38,22 +38,19 @@ namespace Sandbox.Bootstrap
 			BootstrapLog.Info("Wrapping Sandbox internals using Reflection.");
 			
 			// Retrieve Sandbox's context interface from the Global class.
-			_contextInterface = typeof(Global).GetProperty( "ContextInterface", BindingFlags.Static | BindingFlags.NonPublic )
+			_contextInterface = typeof(Global).GetProperty( "GameInterface", BindingFlags.Static | BindingFlags.NonPublic )
 				?.GetValue( null, null );
 
 			if (_contextInterface == null)
 			{
-				BootstrapLog.Error(new InvalidOperationException( "Could not retrieve Global.ContextInterface!" ), "Bootstrapper is out of date!" );
+				BootstrapLog.Error( "Bootstrapper is out of date! Could not retrieve Global.GameInterface!" );
 				return;
 			}
-			
-			// Create a delegate for the ContextInterface.OnNewAssembly method.
-			var original = Type.GetType( "Sandbox.ContextInterface" )
-				?.GetMethod( "OnNewAssembly", new[]
-				{
-					typeof(Assembly), typeof(Assembly)
-				} );
 
+			// Create a delegate for the ContextInterface.OnNewAssembly method.
+			var original = Type.GetType( $"Sandbox.ServerInterface, {typeof(Global).Assembly.FullName}" )
+			 	?.GetMethod( "OnNewAssembly", BindingFlags.NonPublic | BindingFlags.Instance );
+			
 			if (original == null)
 			{
 				BootstrapLog.Error("Bootstrapper is out of date! Could not bind to Sandbox.ContextInterface.OnNewAssembly(Assembly, Assembly)!" );
@@ -63,8 +60,8 @@ namespace Sandbox.Bootstrap
 			_onNewAssembly = original.CreateDelegate<Action<Assembly, Assembly>>(_contextInterface);
 			
 			// Retrieve Sandbox's AssemblyLibrary
-			_assemblyLibrary_All = Type.GetType( "Sandbox.AssemblyLibrary" )
-				?.GetProperty( "All", BindingFlags.Static | BindingFlags.Public );
+			_assemblyLibrary_All = Type.GetType( $"Sandbox.AssemblyLibrary, {typeof(Global).Assembly.FullName}"  )
+				?.GetField( "All", BindingFlags.Static | BindingFlags.Public );
 
 			if (_assemblyLibrary_All == null)
 			{
@@ -73,8 +70,8 @@ namespace Sandbox.Bootstrap
 			}
 			
 			// Retrieve Sandbox's AssemblyLibrary
-			_assemblyWrapper_Assembly = Type.GetType( "Sandbox.AssemblyWrapper" )
-				?.GetProperty( "Assembly", BindingFlags.Public );
+			_assemblyWrapper_Assembly = Type.GetType( $"Sandbox.AssemblyWrapper, {typeof(Global).Assembly.FullName}" )
+				?.GetField( "Assembly", BindingFlags.Public | BindingFlags.Instance );
 
 			if (_assemblyWrapper_Assembly == null)
 			{
@@ -87,7 +84,7 @@ namespace Sandbox.Bootstrap
 		{
 			if (_assemblyLibrary_All != null && _assemblyWrapper_Assembly != null)
 			{
-				if (!(_assemblyLibrary_All.GetValue( null, null ) is IList all))
+				if (!(_assemblyLibrary_All.GetValue( null ) is IList all))
 				{
 					throw new InvalidOperationException( "Could not get list of assemblies from AssemblyLibrary.All" );
 				}
@@ -101,7 +98,7 @@ namespace Sandbox.Bootstrap
 
 				return assemblies;
 			}
-
+			
 			throw new InvalidOperationException( "Cannot get all Sandbox assemblies: wrappers are not bound." );
 		}
 	}
