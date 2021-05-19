@@ -1,23 +1,24 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.Loader;
+
 namespace Sandbox.Bootstrap
 {
 	public class Bootstrapper
 	{
 		private static Bootstrapper _instance;
 		private readonly BootstrapInterface _bootstrapInterface;
-		private Dictionary<string, Assembly> _bootstrappedAssemblies;
-		private Dictionary<string, string> _resolveLookup;
-		
+		private readonly BootstrapMonoCecil _bootstrapMonoCecil;
+
 		public Bootstrapper()
 		{
+			_bootstrapMonoCecil = new BootstrapMonoCecil();
 			_bootstrapInterface = new BootstrapInterface();
-			_bootstrappedAssemblies = new Dictionary<string, Assembly>();
-			_resolveLookup = new Dictionary<string, string>();
 
-			AppDomain.CurrentDomain.AssemblyResolve += ResolveBootstrappedAssembly;
+			// AppDomain.CurrentDomain.AssemblyResolve += (sender, args) => 
 		}
 
 		/// <summary>
@@ -39,42 +40,36 @@ namespace Sandbox.Bootstrap
 		private void Initialize()
 		{
 			BootstrapLog.Info("Initializing.");
+			_bootstrapMonoCecil.Initialize();
 			_bootstrapInterface.WrapReflection();
+			
+			try
+			{
+				var resolutionHandler = Delegate.CreateDelegate(typeof(Func<AssemblyLoadContext,AssemblyName,Assembly>), this, "ResolveBootstrappedAssembly");
+				_bootstrapInterface.BindGameAssemblyManager_LoadContext_Resolving(resolutionHandler);
+			}
+			catch (Exception e)
+			{
+				Log.Error(e, e.Message + "\n" + e.StackTrace);
+			}
 		}
 		
-		private Assembly? ResolveBootstrappedAssembly( object? sender, ResolveEventArgs args )
+		private Assembly ResolveBootstrappedAssembly( AssemblyLoadContext loadContext, AssemblyName name)
 		{
-			if (args.RequestingAssembly == null)
-			{
-				return null;
-			}
+			BootstrapLog.Info($"Attempting to resolve assembly '{name.FullName}'");
 
-			var name = args.RequestingAssembly.GetName();
-			// Only resolve assemblies that have been loaded from this bootstrapper.
-			if (!_bootstrappedAssemblies.ContainsKey( name.FullName ))
+			foreach (var sandboxAssembly in _bootstrapInterface.GetSandboxAssemblies())
 			{
-				return null;
-			}
-			
-			BootstrapLog.Info($"Attempting to resolve aasembly '{args.Name}' for bootstrapped addon '{name.FullName}'");
-
-			if (!_resolveLookup.ContainsKey( name.FullName ))
-			{
-				return null;
-			}
-
-			var lookupType = _resolveLookup[name.FullName];
-
-			foreach (var assembly in _bootstrapInterface.GetSandboxAssemblies())
-			{
-				if (assembly.DefinedTypes.Any( t => t.FullName != null && t.FullName == lookupType ))
+				var sboxName = sandboxAssembly.GetName();
+				var split = sboxName.Name.Split('.');
+				
+				if (split.Length > 1 && split[1].ToLower() == name.Name)
 				{
-					BootstrapLog.Info($"Resolved '{args.Name}' with '{assembly.FullName}'.");
-					return assembly;
+					return sandboxAssembly;
 				}
 			}
 
-			BootstrapLog.Error($"Could not resolve assembly '{args.Name}'.");
+			BootstrapLog.Error($"Could not resolve assembly '{name.FullName}'.");
 			return null;
 		}
 
@@ -85,57 +80,69 @@ namespace Sandbox.Bootstrap
 				throw new ArgumentNullException( nameof(bootstrapBuilder) );
 			}
 			
-			BootstrapLog.Info($"Loading assembly at '{bootstrapBuilder.AssemblyPath}'" );
+			BootstrapLog.Info($"Loading assembly at '{bootstrapBuilder.AssemblyName}'" );
 			BootstrapLog.Info($"Assembly resolve lookup type: '{bootstrapBuilder.LookupTypeName}'" );
 
 			bootstrapBuilder.AssertValid();
 			
 			// Get the name of the assembly we're trying to load.
 			AssemblyName name;
+			var path = $"./addons/sandbox_bootstrap/bootstrapped/{bootstrapBuilder.AssemblyName}/{bootstrapBuilder.AssemblyName}";
 			try
 			{
-				name = AssemblyName.GetAssemblyName( bootstrapBuilder.AssemblyPath );
+				name = AssemblyName.GetAssemblyName( $"{path}.dll" );
+				BootstrapLog.Info($"Found assembly '{name.FullName}' at '{path}.dll', attempting to load.");
 			}
 			catch (Exception e)
 			{
-				BootstrapLog.Error(e, $"Failed to load assembly '{bootstrapBuilder.AssemblyPath}'.");
+				BootstrapLog.Error(e, $"Failed to load assembly '{bootstrapBuilder.AssemblyName}'.");
 				return null;
 			}
 
-			if (_bootstrappedAssemblies.ContainsKey( name.FullName ))
-			{
-				BootstrapLog.Error($"Could not load assembly '{name.FullName}': already loaded.");
-				return _bootstrappedAssemblies[name.FullName];
-			}
-			
-			// Make it null for now. On assembly resolve we'll check it's in the dictionary to handle it.
-			_bootstrappedAssemblies.Add(name.FullName, null);
-
-			// Shouldn't ever happen, but just in case.
-			if (_resolveLookup.ContainsKey( name.FullName ))
-			{
-				_resolveLookup[name.FullName] = bootstrapBuilder.LookupTypeName;
-			}
-			else
-			{
-				_resolveLookup.Add(name.FullName, bootstrapBuilder.LookupTypeName);
-			}
-
+			BootstrapLog.Info($"Valid filesystem: {FileSystem.Mounted.IsValid}");
 			Assembly asm;
 			// Now we load the assembly.
 			try
 			{
-				asm = Assembly.LoadFrom(bootstrapBuilder.AssemblyPath);
+				using var dllFile = FileSystem.Mounted.OpenRead( $"/bootstrapped/{bootstrapBuilder.AssemblyName}/{bootstrapBuilder.AssemblyName}.dll" );
+				using var writableStream = new MemoryStream();
+				dllFile.CopyTo(writableStream);
+				
+				// Before loading, grab all of the dynamic addons currently loaded, and ask Sandbox.Bootstrap.MonoCecil to modify them. 
+				BootstrapLog.Info("[Sandbox.Bootstrap.MonoCecil] Attempting to override references.");
+				foreach (var sboxAssembly in _bootstrapInterface.GetSandboxAssemblies())
+				{
+					if (sboxAssembly != null)
+					{
+						var asmName = sboxAssembly.GetName();
+						var split = asmName.Name!.Split('.');
+						if (split.Length > 1 && split[0] == "Dynamic")
+						{
+							var modified = _bootstrapMonoCecil.ModifyAssemblyReference(writableStream, split[1], asmName);
+							if (modified)
+							{
+								BootstrapLog.Info($"[Sandbox.Bootstrap.MonoCecil] Replaced '{split[1]}' with '{asmName.Name}'");
+							}
+						}
+					}
+				}
+
+				asm = _bootstrapInterface.GameAssemblyManager_LoadContext_LoadFromStream(writableStream);
+				Log.Info("All Refs");
+				foreach (var refAsm in asm.GetReferencedAssemblies())
+				{
+					Log.Info(refAsm.Name);
+				}
 			}
 			catch (Exception e)
 			{
-				BootstrapLog.Error(e, $"Failed to load assembly '{name.FullName}' at '{bootstrapBuilder.AssemblyPath}'");
+				BootstrapLog.Error(e, $"Failed to load assembly '{name.FullName}' at '{bootstrapBuilder.AssemblyName}'\n{e.StackTrace}");
 				return null;
 			}
 			
 			// Woohoo we did it.
 			// TODO: Call an entry point on it perhaps?
-			BootstrapLog.Info($"Successfully loaded assembly '{name.FullName}'." );
+			BootstrapLog.Info($"Successfully loaded assembly '{asm.FullName}'." );
 			bootstrapBuilder.OnAssemblyLoaded?.Invoke( asm );
 			return asm;
 		}

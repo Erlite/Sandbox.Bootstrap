@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Reflection;
+using System.Runtime.Loader;
 
 namespace Sandbox.Bootstrap
 {
@@ -22,6 +24,15 @@ namespace Sandbox.Bootstrap
 		private FieldInfo _assemblyLibrary_All;
 		// Sandbox.AssemblyWrapper.Assembly
 		private FieldInfo _assemblyWrapper_Assembly;
+		
+		// Sandbox.GameAssemblyManager.OnAssembly
+		private Action<string, Stream, Stream> _gameAssemblyManager_OnAssembly;
+		// Sandbox.GameAssemblyManager.LoadContext
+		private FieldInfo _gameAssemblyManager_LoadContext;
+		// Sandbox.GameAssemblyManager.LoadContext.Resolving
+		private EventInfo _gameAssemblyManager_LoadContext_Resolving;
+		// Sandbox.GameAssemblyManager.LoadContext.LoadFromStream(Stream dll, Stream pdb)
+		private Func<Stream, Assembly> _gameAssemblyManager_LoadContext_LoadFromStream;
 		
 		/// <summary>
 		/// Setup all of the required Reflection to interface with Sandbox.
@@ -78,6 +89,50 @@ namespace Sandbox.Bootstrap
 				BootstrapLog.Error( "Bootstrapper is out of date! Could not bind to Sandbox.AssemblyWrapper.Assembly!" );
 				return;
 			}
+
+			_gameAssemblyManager_OnAssembly = Type.GetType( $"Sandbox.GameAssemblyManager, {typeof(Global).Assembly.FullName}" )
+				?.GetMethod( "OnAssembly", BindingFlags.NonPublic | BindingFlags.Static )
+				?.CreateDelegate<Action<string, Stream, Stream>>();
+
+			if (_gameAssemblyManager_OnAssembly == null)
+			{
+				BootstrapLog.Error( "Bootstrapper is out of date! Could not bind to Sandbox.GameAssemblyManager.OnAssembly!" );
+				return;
+			}
+
+			_gameAssemblyManager_LoadContext = Type.GetType($"Sandbox.GameAssemblyManager, {typeof(Global).Assembly.FullName}")
+				?.GetField("LoadContext", BindingFlags.NonPublic | BindingFlags.Static);
+			
+			if (_gameAssemblyManager_LoadContext == null)
+			{
+				BootstrapLog.Error( "Bootstrapper is out of date! Could not bind to Sandbox.GameAssemblyManager.LoadContext!" );
+				return;
+			}
+
+			_gameAssemblyManager_LoadContext_Resolving = typeof(AssemblyLoadContext).GetEvent("Resolving", BindingFlags.Instance | BindingFlags.Public);
+			if (_gameAssemblyManager_LoadContext_Resolving == null)
+			{
+				BootstrapLog.Error( "Bootstrapper is out of date! Could not bind to Sandbox.GameAssemblyManager.LoadContext.Resolving!" );
+				return;
+			}
+
+			try
+			{
+				_gameAssemblyManager_LoadContext_LoadFromStream = typeof(AssemblyLoadContext)
+					.GetMethod("LoadFromStream", new[] { typeof(Stream) })
+					?.CreateDelegate<Func<Stream, Assembly>>(_gameAssemblyManager_LoadContext?.GetValue(null));
+
+				if (_gameAssemblyManager_LoadContext_LoadFromStream == null)
+				{
+					BootstrapLog.Error( "Bootstrapper is out of date! Could not bind to Sandbox.GameAssemblyManager.LoadContext.LoadFromStream!" );
+					return;
+				}
+			}
+			catch (Exception e)
+			{
+				Log.Info($"{e.Message}\n{e.StackTrace}");
+			}
+
 		}
 
 		internal List<Assembly> GetSandboxAssemblies()
@@ -101,5 +156,14 @@ namespace Sandbox.Bootstrap
 			
 			throw new InvalidOperationException( "Cannot get all Sandbox assemblies: wrappers are not bound." );
 		}
+
+		internal void BindGameAssemblyManager_LoadContext_Resolving(Delegate handler)
+		{
+			_gameAssemblyManager_LoadContext_Resolving?.AddEventHandler(_gameAssemblyManager_LoadContext?.GetValue(null), handler);
+		}
+
+		internal void GameAssemblyManager_OnAssembly( string name, Stream dll, Stream pdb ) => _gameAssemblyManager_OnAssembly?.Invoke( name, dll, pdb );
+
+		internal Assembly GameAssemblyManager_LoadContext_LoadFromStream(Stream dll) => _gameAssemblyManager_LoadContext_LoadFromStream?.Invoke(dll);
 	}
 }

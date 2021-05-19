@@ -7,23 +7,24 @@ namespace Sandbox.Bootstrap
 	/// </summary>
 	public class BootstrappedAddonBuilder
 	{
-		internal string AssemblyPath { get; set; }
+		internal string AssemblyName { get; set; }
 		internal string LookupTypeName { get; set; }
 		
 		internal Action<Assembly> OnAssemblyLoaded { get; set; }
 
 		/// <summary>
-		/// The path of the assembly to load.
+		/// The name of the assembly to load.
+		/// .dll and .pdb files will need to be in sbox/bootstrapped/assemblyName/
 		/// </summary>
-		/// <param name="path"> The path of the assembly to load. </param>
-		public BootstrappedAddonBuilder WithAssemblyPath( string path )
+		/// <param name="assemblyName"> The path of the assembly to load. </param>
+		public BootstrappedAddonBuilder WithAssemblyName( string assemblyName )
 		{
-			if (string.IsNullOrWhiteSpace( path ))
+			if (string.IsNullOrWhiteSpace( assemblyName ))
 			{
-				throw new ArgumentException( $"{nameof(path)} cannot be null or empty." );
+				throw new ArgumentException( $"{nameof(assemblyName)} cannot be null or empty." );
 			}
 			
-			AssemblyPath = path;
+			AssemblyName = assemblyName;
 			return this;
 		}
 
@@ -66,7 +67,7 @@ namespace Sandbox.Bootstrap
 				throw new InvalidOperationException( "You must call WithLookupType() before attempting to bootstrap an addon." );
 			}
 
-			if (string.IsNullOrWhiteSpace( AssemblyPath ))
+			if (string.IsNullOrWhiteSpace( AssemblyName ))
 			{
 				throw new InvalidOperationException( "You must call WithAssemblyPath() before attempting to bootstrap an addon." );
 			}
