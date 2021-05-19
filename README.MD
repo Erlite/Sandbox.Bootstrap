@@ -29,13 +29,7 @@ var assembly = new BootstrappedAddonBuilder()
 	.Bootstrap();
 ```
 
-# Why it failed.
+# Ongoing Attempt
 
-Technically it works. As long as you don't reference any dynamically built s&box addon, as you are greeted with this once `Bootstrap.ResolveBootstrappedAssembly()` is raised:
-
-```
-Resolved 'devtest, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null' with 'Dynamic.Dev Test.103, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null'.
-System.NotSupportedException: Resolving to a collectible assembly is not supported.
-```
-
-So it works but without being able to reference s&box addons it's going to be a pain. I'll probably work more on it later.
+I got it to load the assembly correctly, currently working on getting CoreCLR to accept the resolved assembly.
+![image](https://user-images.githubusercontent.com/25248023/118828840-e974ae80-b8bd-11eb-9c9b-3ff5a3f6b227.png)
