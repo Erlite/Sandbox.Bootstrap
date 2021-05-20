@@ -1,6 +1,6 @@
 # Sandbox.Bootstrap
 
-An ongoing attempt at a bootstrapper that lets you load any assembly with dependencies on s&box servers. 
+A bootstrapper that lets you load any assembly with dependencies on s&box servers. 
 
 # Usage
 
