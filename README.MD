@@ -30,5 +30,5 @@ var assembly = new BootstrappedAddonBuilder()
 
 # Ongoing Attempt
 
-`Hello, World!` is called from MyBootstrappedAddon.dll. This goes to show this works, I'll be cleaning it up and making it dev-friendly soon.
+`Hello, World!` is called from MyBootstrappedAddon.dll. MyBootstrappedAddon references my `devtest` gamemode which contains the HelloWorld() method. This goes to show this works, I'll be cleaning it up and making it dev-friendly soon.
 ![image](https://user-images.githubusercontent.com/25248023/119033340-6599ef80-b9ad-11eb-95e7-b859fc99e579.png)
