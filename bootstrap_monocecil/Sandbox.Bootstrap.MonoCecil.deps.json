@@ -8,7 +8,8 @@
     ".NETCoreApp,Version=v5.0": {
       "Sandbox.Bootstrap.MonoCecil/1.0.0": {
         "dependencies": {
-          "dnlib": "3.3.2"
+          "dnlib": "3.3.2",
+          "Sandbox.System": "1.0.1.0"
         },
         "runtime": {
           "Sandbox.Bootstrap.MonoCecil.dll": {}
@@ -27,7 +28,39 @@
         }
       },
       "System.Reflection.Emit/4.7.0": {},
-      "System.Reflection.Emit.Lightweight/4.7.0": {}
+      "System.Reflection.Emit.Lightweight/4.7.0": {},
+      "Sandbox.System/1.0.1.0": {
+        "runtime": {
+          "Sandbox.System.dll": {
+            "assemblyVersion": "1.0.1.0",
+            "fileVersion": "1.0.1.0"
+          }
+        }
+      },
+      "NLog/5.0.0.0": {
+        "runtime": {
+          "NLog.dll": {
+            "assemblyVersion": "5.0.0.0",
+            "fileVersion": "5.0.0.0"
+          }
+        }
+      },
+      "Sandbox.Hotload/0.1.0.0": {
+        "runtime": {
+          "Sandbox.Hotload.dll": {
+            "assemblyVersion": "0.1.0.0",
+            "fileVersion": "0.1.0.0"
+          }
+        }
+      },
+      "Mono.Cecil/0.11.3.0": {
+        "runtime": {
+          "Mono.Cecil.dll": {
+            "assemblyVersion": "0.11.3.0",
+            "fileVersion": "0.11.3.0"
+          }
+        }
+      }
     }
   },
   "libraries": {
@@ -56,6 +89,26 @@
       "sha512": "sha512-a4OLB4IITxAXJeV74MDx49Oq2+PsF6Sml54XAFv+2RyWwtDBcabzoxiiJRhdhx+gaohLh4hEGCLQyBozXoQPqA==",
       "path": "system.reflection.emit.lightweight/4.7.0",
       "hashPath": "system.reflection.emit.lightweight.4.7.0.nupkg.sha512"
+    },
+    "Sandbox.System/1.0.1.0": {
+      "type": "reference",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "NLog/5.0.0.0": {
+      "type": "reference",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Sandbox.Hotload/0.1.0.0": {
+      "type": "reference",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Mono.Cecil/0.11.3.0": {
+      "type": "reference",
+      "serviceable": false,
+      "sha512": ""
     }
   }
 }

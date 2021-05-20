@@ -58,14 +58,12 @@ namespace Sandbox.Bootstrap
 		{
 			BootstrapLog.Info($"Attempting to resolve assembly '{name.FullName}'");
 
-			foreach (var sandboxAssembly in _bootstrapInterface.GetSandboxAssemblies())
+			foreach (var assembly in _bootstrapInterface.GetSandboxAssemblies())
 			{
-				var sboxName = sandboxAssembly.GetName();
-				var split = sboxName.Name.Split('.');
-				
-				if (split.Length > 1 && split[1].ToLower() == name.Name)
+				if (name.Name == assembly.GetName().Name)
 				{
-					return sandboxAssembly;
+					BootstrapLog.Info($"Resolved with '{assembly.FullName}'");
+					return assembly;
 				}
 			}
 
@@ -81,13 +79,12 @@ namespace Sandbox.Bootstrap
 			}
 			
 			BootstrapLog.Info($"Loading assembly at '{bootstrapBuilder.AssemblyName}'" );
-			BootstrapLog.Info($"Assembly resolve lookup type: '{bootstrapBuilder.LookupTypeName}'" );
 
 			bootstrapBuilder.AssertValid();
 			
 			// Get the name of the assembly we're trying to load.
 			AssemblyName name;
-			var path = $"./addons/sandbox_bootstrap/bootstrapped/{bootstrapBuilder.AssemblyName}/{bootstrapBuilder.AssemblyName}";
+			var path = $"./addons/devtest/bootstrapped/{bootstrapBuilder.AssemblyName}/{bootstrapBuilder.AssemblyName}";
 			try
 			{
 				name = AssemblyName.GetAssemblyName( $"{path}.dll" );
@@ -105,11 +102,12 @@ namespace Sandbox.Bootstrap
 			try
 			{
 				using var dllFile = FileSystem.Mounted.OpenRead( $"/bootstrapped/{bootstrapBuilder.AssemblyName}/{bootstrapBuilder.AssemblyName}.dll" );
-				using var writableStream = new MemoryStream();
-				dllFile.CopyTo(writableStream);
 				
 				// Before loading, grab all of the dynamic addons currently loaded, and ask Sandbox.Bootstrap.MonoCecil to modify them. 
 				BootstrapLog.Info("[Sandbox.Bootstrap.MonoCecil] Attempting to override references.");
+				var oldReferences = new List<string>();
+				var newReferences = new List<AssemblyName>();
+				
 				foreach (var sboxAssembly in _bootstrapInterface.GetSandboxAssemblies())
 				{
 					if (sboxAssembly != null)
@@ -118,16 +116,14 @@ namespace Sandbox.Bootstrap
 						var split = asmName.Name!.Split('.');
 						if (split.Length > 1 && split[0] == "Dynamic")
 						{
-							var modified = _bootstrapMonoCecil.ModifyAssemblyReference(writableStream, split[1], asmName);
-							if (modified)
-							{
-								BootstrapLog.Info($"[Sandbox.Bootstrap.MonoCecil] Replaced '{split[1]}' with '{asmName.Name}'");
-							}
+							oldReferences.Add(split[1]);
+							newReferences.Add(asmName);
 						}
 					}
 				}
-
-				asm = _bootstrapInterface.GameAssemblyManager_LoadContext_LoadFromStream(writableStream);
+				
+				var output = _bootstrapMonoCecil.ModifyAssemblyReference(dllFile, oldReferences.ToArray(), newReferences.ToArray());
+				asm = _bootstrapInterface.GameAssemblyManager_LoadContext_LoadFromStream(output);
 				Log.Info("All Refs");
 				foreach (var refAsm in asm.GetReferencedAssemblies())
 				{
@@ -137,7 +133,7 @@ namespace Sandbox.Bootstrap
 			catch (Exception e)
 			{
 				BootstrapLog.Error(e, $"Failed to load assembly '{name.FullName}' at '{bootstrapBuilder.AssemblyName}'\n{e.StackTrace}");
-				return null;
+				return null; 
 			}
 			
 			// Woohoo we did it.

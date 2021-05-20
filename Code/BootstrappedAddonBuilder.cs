@@ -8,8 +8,7 @@ namespace Sandbox.Bootstrap
 	public class BootstrappedAddonBuilder
 	{
 		internal string AssemblyName { get; set; }
-		internal string LookupTypeName { get; set; }
-		
+
 		internal Action<Assembly> OnAssemblyLoaded { get; set; }
 
 		/// <summary>
@@ -27,23 +26,7 @@ namespace Sandbox.Bootstrap
 			AssemblyName = assemblyName;
 			return this;
 		}
-
-		/// <summary>
-		/// The type to use as a lookup reference when resolving a normal Sandbox addon.
-		/// It is recommended to feed in the "main" entry point of the addon/gamemode that will be loading the bootstrapped addon.
-		/// </summary>
-		/// <param name="type"> The type to use to resolve the calling assembly. </param>
-		public BootstrappedAddonBuilder WithLookupType( Type type )
-		{
-			if (type == null)
-			{
-				throw new ArgumentNullException( nameof(type) );
-			}
-			
-			LookupTypeName = type.FullName;
-			return this;
-		}
-
+		
 		public BootstrappedAddonBuilder OnLoaded( Action<Assembly> onLoaded )
 		{
 			OnAssemblyLoaded = onLoaded;
@@ -62,11 +45,6 @@ namespace Sandbox.Bootstrap
 		
 		internal void AssertValid()
 		{
-			if (string.IsNullOrWhiteSpace( LookupTypeName ))
-			{
-				throw new InvalidOperationException( "You must call WithLookupType() before attempting to bootstrap an addon." );
-			}
-
 			if (string.IsNullOrWhiteSpace( AssemblyName ))
 			{
 				throw new InvalidOperationException( "You must call WithAssemblyPath() before attempting to bootstrap an addon." );

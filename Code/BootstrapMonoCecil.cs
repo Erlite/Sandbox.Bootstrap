@@ -11,7 +11,7 @@ namespace Sandbox.Bootstrap
     public class BootstrapMonoCecil
     {
         private Assembly _sandboxMonoCecilAssembly;
-        private Func<Stream, string, AssemblyName, bool> _monocecil_ModifyAssemblyReference;
+        private Func<Stream, string[], AssemblyName[], Stream> _monocecil_ModifyAssemblyReference;
 
         internal bool Initialize()
         {
@@ -40,7 +40,7 @@ namespace Sandbox.Bootstrap
                 
                 _monocecil_ModifyAssemblyReference = _sandboxMonoCecilAssembly.GetType("Sandbox.Bootstrap.MonoCecil.AssemblyReferenceEditor")
                     ?.GetMethod("ModifyAssemblyReference", BindingFlags.Public | BindingFlags.Static)
-                    ?.CreateDelegate<Func<Stream, string, AssemblyName, bool>>(null);
+                    ?.CreateDelegate<Func<Stream, string[], AssemblyName[], Stream>>(null);
 
                 if (_sandboxMonoCecilAssembly == null || _monocecil_ModifyAssemblyReference == null)
                 {
@@ -58,7 +58,7 @@ namespace Sandbox.Bootstrap
             }
         }
         
-        internal bool ModifyAssemblyReference(Stream assembly, string oldName, AssemblyName newName) => _monocecil_ModifyAssemblyReference.Invoke(assembly, oldName, newName);
+        internal Stream ModifyAssemblyReference(Stream assembly, string[] oldName, AssemblyName[] newName) => _monocecil_ModifyAssemblyReference.Invoke(assembly, oldName, newName);
     }
     
 }
