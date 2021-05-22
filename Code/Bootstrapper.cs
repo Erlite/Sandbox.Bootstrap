@@ -17,8 +17,6 @@ namespace Sandbox.Bootstrap
 		{
 			_bootstrapMonoCecil = new BootstrapMonoCecil();
 			_bootstrapInterface = new BootstrapInterface();
-
-			// AppDomain.CurrentDomain.AssemblyResolve += (sender, args) => 
 		}
 
 		/// <summary>
@@ -35,6 +33,80 @@ namespace Sandbox.Bootstrap
 			_instance = new Bootstrapper();
 			_instance.Initialize();
 			return _instance;
+		}
+		
+		public Assembly Boot( BootstrappedAddonBuilder bootstrapBuilder )
+		{
+			if (bootstrapBuilder == null)
+			{
+				throw new ArgumentNullException( nameof(bootstrapBuilder) );
+			}
+			
+			BootstrapLog.Info($"Loading assembly at '{bootstrapBuilder.AssemblyName}'" );
+
+			bootstrapBuilder.AssertValid();
+			
+			// Get the name of the assembly we're trying to load.
+			var relativePath = $"bootstrapped/{bootstrapBuilder.AssemblyName}/{bootstrapBuilder.AssemblyName}.dll";
+			var absolutePath = FileSystem.Mounted.GetFullPath(relativePath);
+
+			if (absolutePath == null)
+			{
+				BootstrapLog.Error($"Could not find assembly '{relativePath}'");
+				return null;
+			}
+
+			AssemblyName name;
+			try
+			{
+				name = AssemblyName.GetAssemblyName( absolutePath );
+				BootstrapLog.Info($"Found assembly '{name.FullName}' at '{relativePath}', attempting to load.");
+			}
+			catch (Exception e)
+			{
+				BootstrapLog.Error(e, $"Failed to load assembly '{bootstrapBuilder.AssemblyName}'.");
+				return null;
+			}
+
+			BootstrapLog.Info($"Valid filesystem: {FileSystem.Mounted.IsValid}");
+			Assembly asm;
+			// Now we load the assembly.
+			try
+			{
+				using var dllFile = FileSystem.Mounted.OpenRead( relativePath );
+				
+				// Before loading, grab all of the dynamic addons currently loaded, and ask Sandbox.Bootstrap.MonoCecil to modify them. 
+				BootstrapLog.Info("[Sandbox.Bootstrap.MonoCecil] Attempting to override references.");
+				var oldReferences = new List<string>();
+				var newReferences = new List<AssemblyName>();
+				
+				foreach (var sboxAssembly in _bootstrapInterface.GetSandboxAssemblies())
+				{
+					if (sboxAssembly != null)
+					{
+						var asmName = sboxAssembly.GetName();
+						var split = asmName.Name!.Split('.');
+						if (split.Length > 1 && split[0] == "Dynamic")
+						{
+							oldReferences.Add(split[1]);
+							newReferences.Add(asmName);
+						}
+					}
+				}
+				
+				var output = _bootstrapMonoCecil.ModifyAssemblyReference(dllFile, oldReferences.ToArray(), newReferences.ToArray());
+				asm = _bootstrapInterface.GameAssemblyManager_LoadContext_LoadFromStream(output);
+			}
+			catch (Exception e)
+			{
+				BootstrapLog.Error(e, $"Failed to load assembly '{name.FullName}' at '{bootstrapBuilder.AssemblyName}'");
+				return null; 
+			}
+			
+			// Woohoo we did it.
+			BootstrapLog.Info($"Successfully loaded assembly '{asm.FullName}'." );
+			bootstrapBuilder.OnAssemblyLoaded?.Invoke( asm );
+			return asm;
 		}
 		
 		private void Initialize()
@@ -69,78 +141,6 @@ namespace Sandbox.Bootstrap
 
 			BootstrapLog.Error($"Could not resolve assembly '{name.FullName}'.");
 			return null;
-		}
-
-		public Assembly Boot( BootstrappedAddonBuilder bootstrapBuilder )
-		{
-			if (bootstrapBuilder == null)
-			{
-				throw new ArgumentNullException( nameof(bootstrapBuilder) );
-			}
-			
-			BootstrapLog.Info($"Loading assembly at '{bootstrapBuilder.AssemblyName}'" );
-
-			bootstrapBuilder.AssertValid();
-			
-			// Get the name of the assembly we're trying to load.
-			AssemblyName name;
-			var path = $"./addons/devtest/bootstrapped/{bootstrapBuilder.AssemblyName}/{bootstrapBuilder.AssemblyName}";
-			try
-			{
-				name = AssemblyName.GetAssemblyName( $"{path}.dll" );
-				BootstrapLog.Info($"Found assembly '{name.FullName}' at '{path}.dll', attempting to load.");
-			}
-			catch (Exception e)
-			{
-				BootstrapLog.Error(e, $"Failed to load assembly '{bootstrapBuilder.AssemblyName}'.");
-				return null;
-			}
-
-			BootstrapLog.Info($"Valid filesystem: {FileSystem.Mounted.IsValid}");
-			Assembly asm;
-			// Now we load the assembly.
-			try
-			{
-				using var dllFile = FileSystem.Mounted.OpenRead( $"/bootstrapped/{bootstrapBuilder.AssemblyName}/{bootstrapBuilder.AssemblyName}.dll" );
-				
-				// Before loading, grab all of the dynamic addons currently loaded, and ask Sandbox.Bootstrap.MonoCecil to modify them. 
-				BootstrapLog.Info("[Sandbox.Bootstrap.MonoCecil] Attempting to override references.");
-				var oldReferences = new List<string>();
-				var newReferences = new List<AssemblyName>();
-				
-				foreach (var sboxAssembly in _bootstrapInterface.GetSandboxAssemblies())
-				{
-					if (sboxAssembly != null)
-					{
-						var asmName = sboxAssembly.GetName();
-						var split = asmName.Name!.Split('.');
-						if (split.Length > 1 && split[0] == "Dynamic")
-						{
-							oldReferences.Add(split[1]);
-							newReferences.Add(asmName);
-						}
-					}
-				}
-				
-				var output = _bootstrapMonoCecil.ModifyAssemblyReference(dllFile, oldReferences.ToArray(), newReferences.ToArray());
-				asm = _bootstrapInterface.GameAssemblyManager_LoadContext_LoadFromStream(output);
-				Log.Info("All Refs");
-				foreach (var refAsm in asm.GetReferencedAssemblies())
-				{
-					Log.Info(refAsm.Name);
-				}
-			}
-			catch (Exception e)
-			{
-				BootstrapLog.Error(e, $"Failed to load assembly '{name.FullName}' at '{bootstrapBuilder.AssemblyName}'\n{e.StackTrace}");
-				return null; 
-			}
-			
-			// Woohoo we did it.
-			// TODO: Call an entry point on it perhaps?
-			BootstrapLog.Info($"Successfully loaded assembly '{asm.FullName}'." );
-			bootstrapBuilder.OnAssemblyLoaded?.Invoke( asm );
-			return asm;
 		}
 	}
 }
