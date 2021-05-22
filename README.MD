@@ -1,6 +1,6 @@
 # Sandbox.Bootstrap
 
-An ongoing attempt at a bootstrapper that lets you load any assembly with dependencies on s&box servers. 
+A bootstrapper that lets you load any assembly with dependencies on s&box servers. 
 
 # Usage
 
@@ -14,7 +14,6 @@ In your s&box addon:
 ```cs
 var assembly = new BootstrappedAddonBuilder()
 	.WithAssemblyPath( "MyBootstrappedAddon.dll" ) // The bootstrapped addon assembly.
-	.WithLookupType( typeof(DevTestGame) ) // Used to resolve this addon assembly with the dynamically built one.
 	.OnLoaded( asm =>
 	{
 		try
@@ -31,5 +30,5 @@ var assembly = new BootstrappedAddonBuilder()
 
 # Ongoing Attempt
 
-I got it to load the assembly correctly, currently working on getting CoreCLR to accept the resolved assembly.
-![image](https://user-images.githubusercontent.com/25248023/118828840-e974ae80-b8bd-11eb-9c9b-3ff5a3f6b227.png)
+`Hello, World!` is called from MyBootstrappedAddon.dll. MyBootstrappedAddon references my `devtest` gamemode which contains the HelloWorld() method. This goes to show this works, I'll be cleaning it up and making it dev-friendly soon.
+![image](https://user-images.githubusercontent.com/25248023/119033340-6599ef80-b9ad-11eb-95e7-b859fc99e579.png)
